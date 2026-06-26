@@ -1,0 +1,22 @@
+interfaces:
+  management: wlan0
+  monitor: wlan1
+filters:
+  whitelist: "^TP-Link_.*"
+  blacklist: "^TP-Link_.*SN$"
+capture:
+  handshake_timeout: 90
+  revisit_interval: 300
+  verify: true
+paths:
+  captures: captures
+  hashes: hashes
+  reports: reports
+  logs: logs
+  state: state/state.json
+cracking:
+  enabled: false
+  hashcat: hashcat
+  mask: "?d?d?d?d?d?d?d?d"
+logging:
+  level: INFO
