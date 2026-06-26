@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 from audit.crack.hashcat import crack, HashcatError
 from audit.util.subprocess import CommandError
@@ -28,8 +29,5 @@ def test_crack_not_found(mock_run):
 
 @patch("audit.crack.hashcat.run", side_effect=CommandError(["hashcat"], 1, "no gpu"))
 def test_crack_error(mock_run):
-    try:
+    with pytest.raises(HashcatError):
         crack("test.22000", "?d?d?d?d?d?d?d?d")
-        assert False, "Should have raised"
-    except HashcatError:
-        pass

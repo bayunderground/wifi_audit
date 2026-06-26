@@ -4,7 +4,6 @@ import signal
 import sys
 import time
 from pathlib import Path
-from datetime import datetime, timezone
 
 from audit.config import load_config
 from audit.logging import setup_logging, get_logger
@@ -19,19 +18,17 @@ from audit.capture.converter import convert_to_22000
 from audit.crack.hashcat import crack
 from audit.report.report import generate_report
 
-log = get_logger(__name__)
-
-def parse_args():
+def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
     p.add_argument("--whitelist", help="Override whitelist regex")
     p.add_argument("--blacklist", help="Override blacklist regex")
     return p.parse_args()
 
-def main():
+def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
-    setup_logging(cfg.logging)
+    setup_logging(cfg.logging, cfg.paths.logs)
     log = get_logger(__name__)
 
     raw = load_raw(cfg.paths.state)
@@ -47,7 +44,7 @@ def main():
     active_capture: CaptureSession | None = None
     running = True
 
-    def handle_sigint(sig, frame):
+    def handle_sigint(sig: int, frame: object) -> None:
         nonlocal running
         log.info("Shutting down...")
         running = False
@@ -63,8 +60,8 @@ def main():
 
     try:
         while running:
-            raw = scan(cfg.interfaces.monitor, whitelist, blacklist)
-            for ap in raw.access_points:
+            raw_scan = scan(cfg.interfaces.monitor, whitelist, blacklist)
+            for ap in raw_scan.access_points:
                 if ap.bssid not in state.targets:
                     log.info("New AP: %s (%s)", ap.essid, ap.bssid)
                     state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)

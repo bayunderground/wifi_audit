@@ -43,5 +43,5 @@ class CaptureSession:
                         if val != "0":
                             return True
             return False
-        except Exception:
+        except (OSError, ValueError):
             return False

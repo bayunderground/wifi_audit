@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 from audit.capture.verifier import verify_capture, VerificationError
 from audit.util.subprocess import CommandError
@@ -17,8 +18,5 @@ def test_verify_no_hash(mock_run):
 
 @patch("audit.capture.verifier.run", side_effect=CommandError(["hcxpcapngtool"], 1, "file not found"))
 def test_verify_command_error(mock_run):
-    try:
+    with pytest.raises(VerificationError):
         verify_capture("bad.pcapng")
-        assert False, "Should have raised"
-    except VerificationError:
-        pass

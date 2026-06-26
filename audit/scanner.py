@@ -1,20 +1,17 @@
 
 from __future__ import annotations
-import re, subprocess
+import re
 from dataclasses import dataclass
 from typing import Iterable
 from .models import AccessPoint
+from .util.subprocess import run
 
 @dataclass(slots=True)
 class ScanResult:
     access_points:list[AccessPoint]
 
-def run_iw_scan(interface:str)->str:
-    return subprocess.check_output(
-        ["iw","dev",interface,"scan"],
-        text=True,
-        stderr=subprocess.STDOUT,
-    )
+def run_iw_scan(interface: str) -> str:
+    return run(["iw", "dev", interface, "scan"])
 
 def parse_scan(text:str)->list[AccessPoint]:
     aps=[]
