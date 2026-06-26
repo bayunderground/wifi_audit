@@ -3,7 +3,8 @@ interfaces:
   monitor: wlan1
 filters:
   whitelist: "^TP-Link_.*"
-  blacklist: "^TP-Link_.*SN$"
+  blacklist:
+    - "^TP-Link_.*SN$"
 capture:
   handshake_timeout: 90
   revisit_interval: 300

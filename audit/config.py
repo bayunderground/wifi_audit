@@ -11,7 +11,7 @@ class Interfaces:
 @dataclass
 class Filters:
     whitelist: str
-    blacklist: str
+    blacklist: list[str]
 
 @dataclass
 class Capture:

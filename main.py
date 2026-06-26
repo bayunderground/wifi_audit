@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
     p.add_argument("--whitelist", help="Override whitelist regex")
-    p.add_argument("--blacklist", help="Override blacklist regex")
+    p.add_argument("--blacklist", nargs="+", help="Override blacklist regex list")
     return p.parse_args()
 
 def main() -> None:
