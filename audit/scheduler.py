@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from heapq import heappush, heappop
 
@@ -27,13 +27,13 @@ class Scheduler:
 
     def rebuild(self):
         self._queue.clear()
-        now=datetime.utcnow()
+        now=datetime.now(timezone.utc)
         for bssid,t in self.state.targets.items():
             due=t.last_attempt+self.revisit if t.last_attempt else now
             heappush(self._queue,QueueEntry(due,bssid))
 
     def due_targets(self,now=None):
-        now=now or datetime.utcnow()
+        now=now or datetime.now(timezone.utc)
         out=[]
         while self._queue and self._queue[0].due<=now:
             e=heappop(self._queue)
@@ -52,6 +52,6 @@ class Scheduler:
             target.state=type(target.state).READY_TO_CRACK
         elif s=="VERIFYING" and event==SchedulerEvent.VERIFY_FAILED:
             target.state=type(target.state).WAITING_FOR_CLIENT
-        target.last_attempt=datetime.utcnow()
+        target.last_attempt=datetime.now(timezone.utc)
         target.attempts+=1
         heappush(self._queue,QueueEntry(target.last_attempt+self.revisit,target.ap.bssid))
