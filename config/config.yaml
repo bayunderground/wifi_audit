@@ -5,6 +5,7 @@ filters:
   whitelist: "^TP-Link_.*"
   blacklist:
     - "^TP-Link_.*SN$"
+    - '^12345678\+$'
 capture:
   handshake_timeout: 90
   revisit_interval: 300
