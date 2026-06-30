@@ -20,7 +20,7 @@ def test_parse_and_filter():
     assert len(aps) == 2
     assert aps[0].essid == "TP-Link_Main"
     assert aps[0].encryption == "WPA2-PSK"
-    f = filter_access_points(aps, r"^TP-Link_.*", [r"^TP-Link_.*SN$"])
+    f = filter_access_points(aps, [r"^TP-Link_.*"], [r"^TP-Link_.*SN$"])
     assert len(f) == 1
     assert f[0].essid == "TP-Link_Main"
 
@@ -37,11 +37,11 @@ def test_run_iw_scan_error(mock_run):
 
 def test_filter_multiple_blacklist():
     aps = parse_scan(SAMPLE_SCAN)
-    f = filter_access_points(aps, r"^TP-Link_.*", [r".*SN$", r".*_Main"])
+    f = filter_access_points(aps, [r"^TP-Link_.*"], [r".*SN$", r".*_Main"])
     assert len(f) == 0
 
 @patch("audit.scanner.run_iw_scan", return_value=SAMPLE_SCAN)
 def test_scan(mock_iw):
-    result = scan("wlan1", r"^TP-Link_.*", [r"^TP-Link_.*SN$"])
+    result = scan("wlan1", [r"^TP-Link_.*"], [r"^TP-Link_.*SN$"])
     assert len(result.access_points) == 1
     assert result.access_points[0].essid == "TP-Link_Main"

@@ -35,12 +35,12 @@ def parse_scan(text:str)->list[AccessPoint]:
     if cur: aps.append(AccessPoint(**cur))
     return aps
 
-def filter_access_points(aps: Iterable[AccessPoint], whitelist: str, blacklist: list[str]) -> list[AccessPoint]:
-    w = re.compile(whitelist)
+def filter_access_points(aps: Iterable[AccessPoint], whitelist: list[str], blacklist: list[str]) -> list[AccessPoint]:
+    allowed = [re.compile(w) for w in whitelist]
     blocked = [re.compile(b) for b in blacklist]
-    return [ap for ap in aps if w.match(ap.essid) and not any(b.match(ap.essid) for b in blocked)]
+    return [ap for ap in aps if any(w.match(ap.essid) for w in allowed) and not any(b.match(ap.essid) for b in blocked)]
 
-def scan(interface: str, whitelist: str, blacklist: list[str]) -> ScanResult:
+def scan(interface: str, whitelist: list[str], blacklist: list[str]) -> ScanResult:
     raw=run_iw_scan(interface)
     aps=parse_scan(raw)
     return ScanResult(filter_access_points(aps,whitelist,blacklist))

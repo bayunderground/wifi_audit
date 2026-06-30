@@ -8,7 +8,8 @@ interfaces:
   management: wlan0
   monitor: wlan1
 filters:
-  whitelist: "^TP-Link_.*"
+  whitelist:
+    - "^TP-Link_.*"
   blacklist:
     - "^TP-Link_.*SN$"
 capture:

@@ -10,7 +10,7 @@ class Interfaces:
 
 @dataclass
 class Filters:
-    whitelist: str
+    whitelist: list[str]
     blacklist: list[str]
 
 @dataclass

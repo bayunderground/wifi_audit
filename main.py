@@ -21,13 +21,16 @@ from audit.report.report import generate_report
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
-    p.add_argument("--whitelist", help="Override whitelist regex")
+    p.add_argument("--whitelist", nargs="+", help="Override whitelist regex list")
     p.add_argument("--blacklist", nargs="+", help="Override blacklist regex list")
+    p.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Override log level from config")
     return p.parse_args()
 
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
+    if args.log_level:
+        cfg.logging.level = args.log_level
     setup_logging(cfg.logging, cfg.paths.logs)
     log = get_logger(__name__)
 
@@ -35,8 +38,8 @@ def main() -> None:
     state = AuditState()
     log.info("Loaded %d targets", len(state.targets))
 
-    whitelist = args.whitelist or cfg.filters.whitelist
-    blacklist = args.blacklist or cfg.filters.blacklist
+    whitelist = args.whitelist if args.whitelist is not None else cfg.filters.whitelist
+    blacklist = args.blacklist if args.blacklist is not None else cfg.filters.blacklist
 
     monitor = MonitorManager(cfg.interfaces.monitor)
     scheduler = Scheduler(state, cfg.capture.revisit_interval)
