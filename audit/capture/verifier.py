@@ -14,12 +14,15 @@ def verify_capture(capture_file: str) -> bool:
     except CommandError as e:
         raise VerificationError(f"hcxpcapngtool failed: {e.stderr}") from e
     for line in output.splitlines():
-        for key in ("PMKID:", "EAPOL:"):
+        for key in ("PMKID total", "EAPOL pairs (useful)"):
             idx = line.find(key)
             if idx != -1:
-                val = line[idx + len(key):].strip().split()[0]
-                if val != "0":
-                    log.info("Valid hash found in %s", capture_file)
-                    return True
+                val = line.split(":")[-1].strip()
+                try:
+                    if int(val) > 0:
+                        log.info("Valid hash found in %s", capture_file)
+                        return True
+                except ValueError:
+                    pass
     log.info("No valid hash in %s", capture_file)
     return False

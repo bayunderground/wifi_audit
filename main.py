@@ -51,6 +51,24 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_sigint)
     signal.signal(signal.SIGTERM, handle_sigint)
 
+    # Scan while interface is still in managed mode
+    try:
+        raw_scan = scan(cfg.interfaces.monitor, cfg.filters.whitelist, cfg.filters.blacklist)
+        for ap in raw_scan.access_points:
+            if ap.bssid not in state.targets:
+                log.info("New AP: %s (%s)", ap.essid, ap.bssid)
+                state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
+                scheduler.rebuild()
+    except Exception as e:
+        log.error("Initial scan failed: %s", e)
+        sys.exit(1)
+
+    if not state.targets:
+        log.error("No targets found. Check filters or bring APs in range.")
+        sys.exit(1)
+
+    log.info("Discovered %d targets, enabling monitor mode", len(state.targets))
+
     try:
         monitor.enable()
     except Exception as e:
@@ -59,13 +77,6 @@ def main() -> None:
 
     try:
         while running:
-            raw_scan = scan(cfg.interfaces.monitor, cfg.filters.whitelist, cfg.filters.blacklist)
-            for ap in raw_scan.access_points:
-                if ap.bssid not in state.targets:
-                    log.info("New AP: %s (%s)", ap.essid, ap.bssid)
-                    state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
-                    scheduler.rebuild()
-
             for target in scheduler.due_targets():
                 if not running:
                     break
