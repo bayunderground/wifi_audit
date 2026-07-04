@@ -23,7 +23,6 @@ paths:
   logs: logs
   state: state/state.json
 cracking:
-  enabled: false
   hashcat: hashcat
   mask: "?d?d?d?d?d?d?d?d"
 logging:
@@ -33,5 +32,4 @@ logging:
     assert cfg.interfaces.management == "wlan0"
     assert cfg.interfaces.monitor == "wlan1"
     assert cfg.capture.revisit_interval == 300
-    assert cfg.cracking.enabled is False
     assert cfg.logging.level == "INFO"

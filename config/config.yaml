@@ -18,7 +18,6 @@ paths:
   logs: logs
   state: state/state.json
 cracking:
-  enabled: false
   hashcat: hashcat
   mask: "?d?d?d?d?d?d?d?d"
 logging:

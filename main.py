@@ -20,9 +20,8 @@ from audit.report.report import generate_report
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
+    p.add_argument("mode", choices=["capture", "crack"], help="Operating mode")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
-    p.add_argument("--whitelist", nargs="+", help="Override whitelist regex list")
-    p.add_argument("--blacklist", nargs="+", help="Override blacklist regex list")
     p.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Override log level from config")
     return p.parse_args()
 
@@ -37,9 +36,6 @@ def main() -> None:
     raw = load_raw(cfg.paths.state)
     state = AuditState()
     log.info("Loaded %d targets", len(state.targets))
-
-    whitelist = args.whitelist if args.whitelist is not None else cfg.filters.whitelist
-    blacklist = args.blacklist if args.blacklist is not None else cfg.filters.blacklist
 
     monitor = MonitorManager(cfg.interfaces.monitor)
     scheduler = Scheduler(state, cfg.capture.revisit_interval)
@@ -63,7 +59,7 @@ def main() -> None:
 
     try:
         while running:
-            raw_scan = scan(cfg.interfaces.monitor, whitelist, blacklist)
+            raw_scan = scan(cfg.interfaces.monitor, cfg.filters.whitelist, cfg.filters.blacklist)
             for ap in raw_scan.access_points:
                 if ap.bssid not in state.targets:
                     log.info("New AP: %s (%s)", ap.essid, ap.bssid)
@@ -105,7 +101,7 @@ def main() -> None:
                         scheduler.transition(target, SchedulerEvent.VERIFY_FAILED)
 
                 elif target.state == APState.READY_TO_CRACK:
-                    if cfg.cracking.enabled and target.hash_path:
+                    if args.mode == "crack" and target.hash_path:
                         log.info("Cracking: %s", target.ap.bssid)
                         password = crack(str(target.hash_path), cfg.cracking.mask)
                         if password:

@@ -29,7 +29,6 @@ class Paths:
 
 @dataclass
 class Cracking:
-    enabled: bool
     hashcat: str
     mask: str
 
