@@ -92,3 +92,31 @@ def test_handshake_empty_file():
          patch.object(Path, "stat") as mock_stat:
         mock_stat.return_value.st_size = 0
         assert cap.handshake_detected() is False
+
+def test_timed_out_before_start():
+    cap = CaptureSession("wlan1", "aa:bb", 6, Path("out.pcapng"))
+    assert cap.timed_out(90) is False
+
+@patch("audit.capture.hcxdump._compile_bpf", return_value="48 0 0 3\n")
+@patch("audit.capture.hcxdump.Popen")
+def test_timed_out_not_yet(mock_popen_cls, mock_bpf):
+    cap = CaptureSession("wlan1", "aa:bb", 6, Path("out.pcapng"))
+    with patch("audit.capture.hcxdump.tempfile.NamedTemporaryFile") as mock_tmp:
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/test.bpf"
+        mock_tmp.return_value = mock_file
+        cap.start()
+    assert cap.timed_out(9999) is False
+
+@patch("audit.capture.hcxdump._compile_bpf", return_value="48 0 0 3\n")
+@patch("audit.capture.hcxdump.Popen")
+@patch("audit.capture.hcxdump.time")
+def test_timed_out_expired(mock_time, mock_popen_cls, mock_bpf):
+    mock_time.monotonic.side_effect = [100.0, 200.0]
+    cap = CaptureSession("wlan1", "aa:bb", 6, Path("out.pcapng"))
+    with patch("audit.capture.hcxdump.tempfile.NamedTemporaryFile") as mock_tmp:
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/test.bpf"
+        mock_tmp.return_value = mock_file
+        cap.start()
+    assert cap.timed_out(90) is True

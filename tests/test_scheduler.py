@@ -18,3 +18,11 @@ def test_scheduler_transitions():
     assert t.state==APState.READY_TO_CRACK
     future=now+timedelta(seconds=11)
     assert len(sch.due_targets(future))>=1
+
+def test_capture_timeout_transition():
+    ap=AccessPoint("TP-Link_Test","bb",1,-40,"WPA2")
+    t=AuditTarget(ap=ap,state=APState.CAPTURING)
+    st=AuditState(targets={"bb":t})
+    sch=Scheduler(st,10)
+    sch.transition(t,SchedulerEvent.CAPTURE_TIMEOUT)
+    assert t.state==APState.WAITING_FOR_CLIENT

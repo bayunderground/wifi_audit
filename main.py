@@ -82,23 +82,43 @@ def main() -> None:
                     break
 
                 if target.state in (APState.DISCOVERED, APState.WAITING_FOR_CLIENT):
-                    log.info("Starting capture: %s", target.ap.bssid)
-                    cap_path = Path(cfg.paths.captures) / f"{target.ap.bssid.replace(':', '_')}.pcapng"
-                    cap = CaptureSession(
-                        monitor.monitor_iface, target.ap.bssid, target.ap.channel, cap_path
-                    )
-                    cap.start()
-                    active_captures[target.ap.bssid] = cap
-                    target.handshake_path = cap_path
-                    scheduler.transition(target, SchedulerEvent.CLIENTS_PRESENT)
+                    # Single radio: stop any existing capture before switching
+                    for bssid, existing_cap in list(active_captures.items()):
+                        if bssid != target.ap.bssid:
+                            log.info("Stopping capture for %s to switch to %s",
+                                     bssid, target.ap.bssid)
+                            existing_cap.stop()
+                            interrupted = state.targets.get(bssid)
+                            if interrupted and interrupted.state == APState.CAPTURING:
+                                scheduler.transition(interrupted, SchedulerEvent.CAPTURE_TIMEOUT)
+                            del active_captures[bssid]
+
+                    if target.ap.bssid not in active_captures:
+                        log.info("Starting capture: %s", target.ap.bssid)
+                        cap_path = Path(cfg.paths.captures) / f"{target.ap.bssid.replace(':', '_')}.pcapng"
+                        cap = CaptureSession(
+                            monitor.monitor_iface, target.ap.bssid, target.ap.channel, cap_path
+                        )
+                        cap.start()
+                        active_captures[target.ap.bssid] = cap
+                        target.handshake_path = cap_path
+                        scheduler.transition(target, SchedulerEvent.CLIENTS_PRESENT)
 
                 elif target.state == APState.CAPTURING:
                     cap = active_captures.get(target.ap.bssid)
-                    if cap and cap.handshake_detected():
+                    if cap is None:
+                        scheduler.transition(target, SchedulerEvent.CAPTURE_TIMEOUT)
+                    elif cap.handshake_detected():
                         log.info("Handshake found: %s", target.ap.bssid)
                         cap.stop()
                         del active_captures[target.ap.bssid]
                         scheduler.transition(target, SchedulerEvent.CAPTURE_SUCCESS)
+                    elif cap.timed_out(cfg.capture.handshake_timeout):
+                        log.info("Capture timed out after %ds: %s",
+                                 cfg.capture.handshake_timeout, target.ap.bssid)
+                        cap.stop()
+                        del active_captures[target.ap.bssid]
+                        scheduler.transition(target, SchedulerEvent.CAPTURE_TIMEOUT)
                     else:
                         log.debug("No handshake yet: %s", target.ap.bssid)
 

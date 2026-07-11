@@ -1,5 +1,6 @@
 from __future__ import annotations
 import tempfile
+import time
 from pathlib import Path
 from ..logging import get_logger
 from ..util.subprocess import run, Popen
@@ -22,6 +23,7 @@ class CaptureSession:
         self.capture_path = Path(capture_path)
         self._backend: Popen | None = None
         self._bpf_path: Path | None = None
+        self._start_time: float = 0.0
 
     def start(self):
         log.info("Capturing %s on channel %d", self.bssid, self.channel)
@@ -41,6 +43,7 @@ class CaptureSession:
             "-w", str(self.capture_path),
         ])
         self._backend.start()
+        self._start_time = time.monotonic()
 
     def stop(self):
         if self._backend is not None:
@@ -69,3 +72,8 @@ class CaptureSession:
             return False
         except (OSError, ValueError):
             return False
+
+    def timed_out(self, timeout_seconds: int) -> bool:
+        if self._start_time == 0.0:
+            return False
+        return (time.monotonic() - self._start_time) >= timeout_seconds

@@ -51,6 +51,8 @@ class Scheduler:
             target.state = type(target.state).WAITING_FOR_CLIENT
         elif s == "CAPTURING" and event == SchedulerEvent.CAPTURE_SUCCESS:
             target.state = type(target.state).VERIFYING
+        elif s == "CAPTURING" and event == SchedulerEvent.CAPTURE_TIMEOUT:
+            target.state = type(target.state).WAITING_FOR_CLIENT
         elif s == "VERIFYING" and event == SchedulerEvent.VERIFY_SUCCESS:
             target.state = type(target.state).READY_TO_CRACK
         elif s == "VERIFYING" and event == SchedulerEvent.VERIFY_FAILED:
