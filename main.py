@@ -103,6 +103,7 @@ def main() -> None:
                         active_captures[target.ap.bssid] = cap
                         target.handshake_path = cap_path
                         scheduler.transition(target, SchedulerEvent.CLIENTS_PRESENT)
+                    break  # one capture at a time; let it run before checking others
 
                 elif target.state == APState.CAPTURING:
                     cap = active_captures.get(target.ap.bssid)
@@ -121,6 +122,7 @@ def main() -> None:
                         scheduler.transition(target, SchedulerEvent.CAPTURE_TIMEOUT)
                     else:
                         log.debug("No handshake yet: %s", target.ap.bssid)
+                    break  # one capture at a time
 
                 elif target.state == APState.VERIFYING:
                     if target.handshake_path and verify_capture(str(target.handshake_path)):
