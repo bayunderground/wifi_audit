@@ -40,7 +40,7 @@ def main() -> None:
     monitor = MonitorManager(cfg.interfaces.monitor)
     scheduler = Scheduler(state, cfg.capture.revisit_interval)
 
-    active_capture: CaptureSession | None = None
+    active_captures: dict[str, CaptureSession] = {}
     running = True
 
     def handle_sigint(sig: int, frame: object) -> None:
@@ -81,21 +81,23 @@ def main() -> None:
                 if not running:
                     break
 
-                if target.state == APState.DISCOVERED:
+                if target.state in (APState.DISCOVERED, APState.WAITING_FOR_CLIENT):
                     log.info("Starting capture: %s", target.ap.bssid)
                     cap_path = Path(cfg.paths.captures) / f"{target.ap.bssid.replace(':', '_')}.pcapng"
-                    active_capture = CaptureSession(
+                    cap = CaptureSession(
                         monitor.monitor_iface, target.ap.bssid, target.ap.channel, cap_path
                     )
-                    active_capture.start()
+                    cap.start()
+                    active_captures[target.ap.bssid] = cap
                     target.handshake_path = cap_path
                     scheduler.transition(target, SchedulerEvent.CLIENTS_PRESENT)
 
                 elif target.state == APState.CAPTURING:
-                    if active_capture and active_capture.handshake_detected():
+                    cap = active_captures.get(target.ap.bssid)
+                    if cap and cap.handshake_detected():
                         log.info("Handshake found: %s", target.ap.bssid)
-                        active_capture.stop()
-                        active_capture = None
+                        cap.stop()
+                        del active_captures[target.ap.bssid]
                         scheduler.transition(target, SchedulerEvent.CAPTURE_SUCCESS)
                     else:
                         log.debug("No handshake yet: %s", target.ap.bssid)
@@ -125,8 +127,9 @@ def main() -> None:
             time.sleep(5)
 
     finally:
-        if active_capture:
-            active_capture.stop()
+        for cap in active_captures.values():
+            cap.stop()
+        active_captures.clear()
         monitor.disable()
         save_raw(cfg.paths.state, state.targets)
         log.info("State saved. Exiting.")
