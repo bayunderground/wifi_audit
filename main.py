@@ -61,6 +61,43 @@ def run_verify_mode(cfg, log) -> None:
     log.info("Verification complete: %d verified, %d converted, %d failed",
              verified_count, converted_count, failed_count)
 
+def run_crack_mode(cfg, log) -> None:
+    """Crack all READY_TO_CRACK targets from existing .22000 hash files."""
+    raw = load_raw(cfg.paths.state)
+    state = AuditState()
+    state.targets = raw
+    log.info("Loaded %d targets", len(state.targets))
+
+    candidates = {
+        bssid: t for bssid, t in state.targets.items()
+        if t.state == APState.READY_TO_CRACK and t.hash_path
+    }
+
+    if not candidates:
+        log.info("No targets ready to crack")
+        return
+
+    log.info("Found %d targets ready to crack", len(candidates))
+
+    cracked_count = 0
+    for bssid, target in candidates.items():
+        log.info("Cracking %s (%s)", target.ap.essid, bssid)
+        try:
+            password = crack(str(target.hash_path), cfg.cracking.mask)
+            if password:
+                target.password = password
+                target.state = APState.CRACKED
+                cracked_count += 1
+                log.info("Cracked: %s -> %s", bssid, password)
+            else:
+                log.info("Password not found: %s", bssid)
+        except Exception as e:
+            log.error("Cracking failed for %s: %s", bssid, e)
+
+    generate_report(state, Path(cfg.paths.reports))
+    save_raw(cfg.paths.state, state.targets)
+    log.info("Crack complete: %d/%d cracked", cracked_count, len(candidates))
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
     p.add_argument("mode", choices=["capture", "crack", "verify"], help="Operating mode")
@@ -78,6 +115,10 @@ def main() -> None:
 
     if args.mode == "verify":
         run_verify_mode(cfg, log)
+        return
+
+    if args.mode == "crack":
+        run_crack_mode(cfg, log)
         return
 
     raw = load_raw(cfg.paths.state)
