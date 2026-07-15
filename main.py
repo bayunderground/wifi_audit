@@ -18,9 +18,52 @@ from audit.capture.converter import convert_to_22000
 from audit.crack.hashcat import crack
 from audit.report.report import generate_report
 
+def run_verify_mode(cfg, log) -> None:
+    """Verify and convert all available captures to .22000 format."""
+    captures_dir = Path(cfg.paths.captures)
+    hashes_dir = Path(cfg.paths.hashes)
+    hashes_dir.mkdir(parents=True, exist_ok=True)
+
+    capture_files = list(captures_dir.glob("*.pcapng"))
+    if not capture_files:
+        log.info("No capture files found in %s", captures_dir)
+        return
+
+    log.info("Found %d capture files to verify", len(capture_files))
+
+    verified_count = 0
+    converted_count = 0
+    failed_count = 0
+
+    for capture_file in capture_files:
+        bssid = capture_file.stem.replace('_', ':')
+        log.info("Processing: %s (%s)", capture_file.name, bssid)
+
+        try:
+            if verify_capture(str(capture_file)):
+                verified_count += 1
+                hash_file = hashes_dir / f"{capture_file.stem}.22000"
+
+                try:
+                    convert_to_22000(str(capture_file), str(hash_file))
+                    converted_count += 1
+                    log.info("Converted: %s -> %s", capture_file.name, hash_file.name)
+                except Exception as e:
+                    log.error("Conversion failed for %s: %s", capture_file.name, e)
+                    failed_count += 1
+            else:
+                log.info("No valid handshake/PMKID in %s", capture_file.name)
+                failed_count += 1
+        except Exception as e:
+            log.error("Verification failed for %s: %s", capture_file.name, e)
+            failed_count += 1
+
+    log.info("Verification complete: %d verified, %d converted, %d failed",
+             verified_count, converted_count, failed_count)
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
-    p.add_argument("mode", choices=["capture", "crack"], help="Operating mode")
+    p.add_argument("mode", choices=["capture", "crack", "verify"], help="Operating mode")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
     p.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Override log level from config")
     return p.parse_args()
@@ -32,6 +75,10 @@ def main() -> None:
         cfg.logging.level = args.log_level
     setup_logging(cfg.logging, cfg.paths.logs)
     log = get_logger(__name__)
+
+    if args.mode == "verify":
+        run_verify_mode(cfg, log)
+        return
 
     raw = load_raw(cfg.paths.state)
     state = AuditState()
