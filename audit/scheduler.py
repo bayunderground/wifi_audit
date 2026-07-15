@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from heapq import heappush, heappop
-from .models import AuditState, AuditTarget
+from .models import AuditState, AuditTarget, APState
 from .logging import get_logger
 
 log = get_logger(__name__)
@@ -35,12 +35,27 @@ class Scheduler:
             due = t.last_attempt + self.revisit if t.last_attempt else now
             heappush(self._queue, QueueEntry(due, bssid))
 
+    _ACTIVE_STATES = {APState.CAPTURING, APState.VERIFYING, APState.READY_TO_CRACK}
+
     def due_targets(self, now: datetime | None = None) -> list[AuditTarget]:
         now = now or datetime.now(timezone.utc)
         out: list[AuditTarget] = []
-        while self._queue and self._queue[0].due <= now:
-            e = heappop(self._queue)
-            out.append(self.state.targets[e.bssid])
+        seen: set[str] = set()
+        # Always include targets in active states (need immediate processing)
+        for t in self.state.targets.values():
+            if t.state in self._ACTIVE_STATES:
+                out.append(t)
+                seen.add(t.ap.bssid)
+        # Peek at due queue entries without popping — DISCOVERED targets
+        # stay queued until they actually transition state
+        for e in self._queue:
+            if e.due > now:
+                break
+            if e.bssid not in seen:
+                target = self.state.targets[e.bssid]
+                if target.state == APState.DISCOVERED:
+                    out.append(target)
+                    seen.add(e.bssid)
         return out
 
     def transition(self, target: AuditTarget, event: SchedulerEvent) -> None:
