@@ -18,6 +18,26 @@ from audit.capture.converter import convert_to_22000
 from audit.crack.hashcat import crack
 from audit.report.report import generate_report
 
+log = get_logger(__name__)
+
+def _extract_essid_from_hash(hash_file: Path) -> str:
+    """Extract ESSID from a .22000 hash file (hex-encoded field 6)."""
+    try:
+        line = hash_file.read_text().strip().split("\n")[0]
+        parts = line.split("*")
+        if len(parts) >= 6:
+            return bytes.fromhex(parts[5]).decode(errors="replace")
+    except Exception:
+        pass
+    return "unknown"
+
+def _save_cracked_results(results: list[tuple[str, str, str]], output_path: Path) -> None:
+    """Save cracked results to a file. Each entry: (essid, bssid, password)."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [f"{essid} | {bssid} | {password}" for essid, bssid, password in results]
+    output_path.write_text("\n".join(lines) + "\n" if lines else "")
+    log.info("Cracked results saved to %s", output_path)
+
 def run_verify_mode(cfg, log) -> None:
     """Verify and convert all available captures to .22000 format."""
     captures_dir = Path(cfg.paths.captures)
@@ -80,6 +100,7 @@ def run_crack_mode(cfg, log) -> None:
     log.info("Found %d targets ready to crack", len(candidates))
 
     cracked_count = 0
+    cracked_results: list[tuple[str, str, str]] = []
     for bssid, target in candidates.items():
         log.info("Cracking %s (%s)", target.ap.essid, bssid)
         try:
@@ -88,6 +109,7 @@ def run_crack_mode(cfg, log) -> None:
                 target.password = password
                 target.state = APState.CRACKED
                 cracked_count += 1
+                cracked_results.append((target.ap.essid, bssid, password))
                 log.info("Cracked: %s -> %s", bssid, password)
             else:
                 log.info("Password not found: %s", bssid)
@@ -95,6 +117,8 @@ def run_crack_mode(cfg, log) -> None:
             log.error("Cracking failed for %s: %s", bssid, e)
 
     generate_report(state, Path(cfg.paths.reports))
+    if cracked_results:
+        _save_cracked_results(cracked_results, Path(cfg.paths.reports) / "cracked.txt")
     save_raw(cfg.paths.state, state.targets)
     log.info("Crack complete: %d/%d cracked", cracked_count, len(candidates))
 
@@ -110,6 +134,7 @@ def run_test_crack_mode(cfg, log, args, fixtures_dir: str | Path = "fixtures") -
     log.info("Found %d fixture capture files", len(capture_files))
 
     cracked_count = 0
+    cracked_results: list[tuple[str, str, str]] = []
     for capture_file in capture_files:
         log.info("Processing fixture: %s", capture_file.name)
 
@@ -127,12 +152,16 @@ def run_test_crack_mode(cfg, log, args, fixtures_dir: str | Path = "fixtures") -
             password = crack(str(hash_file), mask, custom_charsets=custom_charsets)
             if password:
                 cracked_count += 1
+                essid = _extract_essid_from_hash(hash_file)
+                cracked_results.append((essid, capture_file.stem, password))
                 log.info("Cracked: %s -> %s", capture_file.name, password)
             else:
                 log.info("Password not found: %s", capture_file.name)
         except Exception as e:
             log.error("Failed for %s: %s", capture_file.name, e)
 
+    if cracked_results:
+        _save_cracked_results(cracked_results, fixtures_dir / "cracked.txt")
     log.info("Test crack complete: %d/%d cracked", cracked_count, len(capture_files))
 
 def parse_args() -> argparse.Namespace:
