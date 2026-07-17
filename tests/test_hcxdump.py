@@ -3,14 +3,14 @@ from unittest.mock import patch, MagicMock, call
 from audit.capture.hcxdump import CaptureSession, _channel_arg, _compile_bpf
 
 def test_channel_arg_2ghz():
-    assert _channel_arg(1) == "1a"
-    assert _channel_arg(6) == "6a"
-    assert _channel_arg(14) == "14a"
+    assert _channel_arg(1) == "1"
+    assert _channel_arg(6) == "6"
+    assert _channel_arg(14) == "14"
 
 def test_channel_arg_5ghz():
-    assert _channel_arg(36) == "36b"
-    assert _channel_arg(44) == "44b"
-    assert _channel_arg(149) == "149b"
+    assert _channel_arg(36) == "36"
+    assert _channel_arg(44) == "44"
+    assert _channel_arg(149) == "149"
 
 @patch("audit.capture.hcxdump.run", return_value="48 0 0 3\n100 0 0 8\n")
 def test_compile_bpf(mock_run):
@@ -32,7 +32,7 @@ def test_start(mock_popen_cls, mock_bpf):
     mock_bpf.assert_called_once_with("aa:bb:cc:dd:ee:ff")
     mock_popen_cls.assert_called_once_with([
         "hcxdumptool", "-i", "wlan1",
-        "-c", "6a",
+        "-c", "6",
         "--bpf", "/tmp/test.bpf",
         "-w", "captures/test.pcapng",
     ])

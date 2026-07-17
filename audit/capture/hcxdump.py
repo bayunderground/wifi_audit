@@ -8,7 +8,7 @@ from ..util.subprocess import run, Popen
 log = get_logger(__name__)
 
 def _channel_arg(channel: int) -> str:
-    return f"{channel}a" if channel <= 14 else f"{channel}b"
+    return str(channel)
 
 def _compile_bpf(bssid: str) -> str:
     hex_bssid = bssid.replace(":", "")

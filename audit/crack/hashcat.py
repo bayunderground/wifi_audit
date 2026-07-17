@@ -10,14 +10,14 @@ class HashcatError(Exception):
 
 def crack(hash_file: str, mask: str, custom_charsets: dict[int, str] | None = None, potfile: str | None = None) -> str | None:
     log.info("Cracking %s with mask %s", hash_file, mask)
-    cmd = ["hashcat", "-m", "22000", hash_file]
+    cmd = ["hashcat", "-m", "22000"]
+    if potfile is not None:
+        cmd.extend(["--potfile-path", potfile])
     if custom_charsets:
         cmd.extend(["-a", "3"])
         for idx, charset in sorted(custom_charsets.items()):
             cmd.extend([f"-{idx}", charset])
-    if potfile is not None:
-        cmd.extend(["--potfile-path", potfile])
-    cmd.append(mask)
+    cmd.extend([hash_file, mask])
     try:
         output = run(cmd)
     except CommandError as e:
