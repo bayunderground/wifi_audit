@@ -149,7 +149,7 @@ def run_test_crack_mode(cfg, log, args, fixtures_dir: str | Path = "fixtures") -
 
             mask = args.mask or "12345678?1"
             custom_charsets = {1: "+"} if not args.mask else None
-            password = crack(str(hash_file), mask, custom_charsets=custom_charsets)
+            password = crack(str(hash_file), mask, custom_charsets=custom_charsets, potfile="/dev/null")
             if password:
                 cracked_count += 1
                 essid = _extract_essid_from_hash(hash_file)

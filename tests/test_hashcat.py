@@ -37,3 +37,26 @@ def test_crack_with_custom_charsets(mock_run):
     result = crack("test.22000", "12345678?1", custom_charsets={1: "+"})
     assert result == "12345678"
     mock_run.assert_called_once_with(["hashcat", "-m", "22000", "test.22000", "-a", "3", "-1", "+", "12345678?1"])
+
+@patch("audit.crack.hashcat.run", return_value=HASHCAT_OUTPUT_CRACKED)
+def test_crack_with_potfile(mock_run):
+    result = crack("test.22000", "?d?d?d?d?d?d?d?d", potfile="/dev/null")
+    assert result == "12345678"
+    mock_run.assert_called_once_with(["hashcat", "-m", "22000", "test.22000", "--potfile-path", "/dev/null", "?d?d?d?d?d?d?d?d"])
+
+HASHCAT_OUTPUT_WITH_URL = """\
+hashcat (v6.2.6) starting...
+
+OpenCL API (OpenCL 3.0 ...
+* Device #1: Tesla V100-SXM2-16GB, 14751/16160 MB, 80MCU
+
+aa:bb:cc:dd:ee:ff:12345678
+
+Session..........: hashcat
+Status...........: Cracked
+"""
+
+@patch("audit.crack.hashcat.run", return_value=HASHCAT_OUTPUT_WITH_URL)
+def test_crack_ignores_urls_in_output(mock_run):
+    result = crack("test.22000", "?d?d?d?d?d?d?d?d")
+    assert result == "12345678"

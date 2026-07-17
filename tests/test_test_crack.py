@@ -65,6 +65,7 @@ class TestTestCrackMode:
             mock_convert.assert_called_once()
             mock_crack.assert_called_once()
             assert mock_crack.call_args[1]["custom_charsets"] == {1: "+"}
+            assert mock_crack.call_args[1]["potfile"] == "/dev/null"
 
             cracked_file = fixtures_dir / "cracked.txt"
             assert cracked_file.exists()
