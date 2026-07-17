@@ -98,11 +98,49 @@ def run_crack_mode(cfg, log) -> None:
     save_raw(cfg.paths.state, state.targets)
     log.info("Crack complete: %d/%d cracked", cracked_count, len(candidates))
 
+def run_test_crack_mode(cfg, log, args, fixtures_dir: str | Path = "fixtures") -> None:
+    """Test crack using pre-saved fixture files. Bypasses all filters."""
+    fixtures_dir = Path(fixtures_dir)
+
+    capture_files = list(fixtures_dir.glob("*.pcapng"))
+    if not capture_files:
+        log.info("No fixture capture files found in %s", fixtures_dir)
+        return
+
+    log.info("Found %d fixture capture files", len(capture_files))
+
+    cracked_count = 0
+    for capture_file in capture_files:
+        log.info("Processing fixture: %s", capture_file.name)
+
+        try:
+            if not verify_capture(str(capture_file)):
+                log.info("No valid handshake in %s", capture_file.name)
+                continue
+
+            hash_file = fixtures_dir / f"{capture_file.stem}.22000"
+            convert_to_22000(str(capture_file), str(hash_file))
+            log.info("Converted: %s -> %s", capture_file.name, hash_file.name)
+
+            mask = args.mask or "12345678?1"
+            custom_charsets = {1: "+"} if not args.mask else None
+            password = crack(str(hash_file), mask, custom_charsets=custom_charsets)
+            if password:
+                cracked_count += 1
+                log.info("Cracked: %s -> %s", capture_file.name, password)
+            else:
+                log.info("Password not found: %s", capture_file.name)
+        except Exception as e:
+            log.error("Failed for %s: %s", capture_file.name, e)
+
+    log.info("Test crack complete: %d/%d cracked", cracked_count, len(capture_files))
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
-    p.add_argument("mode", choices=["capture", "crack", "verify"], help="Operating mode")
+    p.add_argument("mode", choices=["capture", "crack", "verify", "test-crack"], help="Operating mode")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
     p.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Override log level from config")
+    p.add_argument("--mask", default=None, help="Override cracking mask (test-crack only)")
     return p.parse_args()
 
 def main() -> None:
@@ -119,6 +157,10 @@ def main() -> None:
 
     if args.mode == "crack":
         run_crack_mode(cfg, log)
+        return
+
+    if args.mode == "test-crack":
+        run_test_crack_mode(cfg, log, args)
         return
 
     raw = load_raw(cfg.paths.state)

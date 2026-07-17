@@ -8,10 +8,16 @@ log = get_logger(__name__)
 class HashcatError(Exception):
     pass
 
-def crack(hash_file: str, mask: str) -> str | None:
+def crack(hash_file: str, mask: str, custom_charsets: dict[int, str] | None = None) -> str | None:
     log.info("Cracking %s with mask %s", hash_file, mask)
+    cmd = ["hashcat", "-m", "22000", hash_file]
+    if custom_charsets:
+        cmd.extend(["-a", "3"])
+        for idx, charset in sorted(custom_charsets.items()):
+            cmd.extend([f"-{idx}", charset])
+    cmd.append(mask)
     try:
-        output = run(["hashcat", "-m", "22000", hash_file, mask])
+        output = run(cmd)
     except CommandError as e:
         raise HashcatError(f"hashcat failed: {e.stderr}") from e
     match = re.search(r":([^:\s]+)\s*$", output, re.MULTILINE)
