@@ -10,7 +10,7 @@ filters:
     - "^TP-Link_40C5.*$"
     - "^TP-Link_98AC.*$"
 capture:
-  handshake_timeout: 90
+  handshake_timeout: 3600
   revisit_interval: 300
   verify: true
 paths:

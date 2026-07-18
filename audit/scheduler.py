@@ -46,14 +46,14 @@ class Scheduler:
             if t.state in self._ACTIVE_STATES:
                 out.append(t)
                 seen.add(t.ap.bssid)
-        # Peek at due queue entries without popping — DISCOVERED targets
-        # stay queued until they actually transition state
+        # Peek at due queue entries without popping — DISCOVERED and
+        # WAITING_FOR_CLIENT targets stay queued until they actually transition
         for e in self._queue:
             if e.due > now:
                 break
             if e.bssid not in seen:
                 target = self.state.targets[e.bssid]
-                if target.state == APState.DISCOVERED:
+                if target.state in (APState.DISCOVERED, APState.WAITING_FOR_CLIENT):
                     out.append(target)
                     seen.add(e.bssid)
         return out
