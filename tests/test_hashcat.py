@@ -96,3 +96,19 @@ WPA*02*43e1f4029b39cdd48bd8169920e9d2d6*9c9d7ecfdc80*222351001162*31323334353637
 def test_crack_wpa_hash_format(mock_run):
     result = crack("test.22000", "12345678?1", custom_charsets={1: "+"})
     assert result == "12345678+"
+
+HASHCAT_OUTPUT_URL_BEFORE_PASSWORD = """\
+hashcat (v6.2.6) starting...
+
+For tips on supplying more work, see: https://hashcat.net/faq/morework
+
+46e200ca8fcb3ba71c1087adc4ba4ddb:9c9d7ecfdc80:6a9f69470259:12345678+:12345678+
+
+Session..........: hashcat
+Status...........: Exhausted
+"""
+
+@patch("audit.crack.hashcat._subprocess.run", return_value=_make_result(HASHCAT_OUTPUT_URL_BEFORE_PASSWORD))
+def test_crack_skips_url_before_password(mock_run):
+    result = crack("test.22000", "12345678?1", custom_charsets={1: "+"})
+    assert result == "12345678+"

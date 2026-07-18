@@ -28,13 +28,12 @@ def crack(hash_file: str, mask: str, custom_charsets: dict[int, str] | None = No
         log.debug("Stderr tail: %s", result.stderr[-500:])
     if result.returncode > 1:
         raise HashcatError(f"hashcat failed (rc={result.returncode}): {result.stderr.strip() or result.stdout.strip()}")
-    match = re.search(r":([^:\s]+)\s*$", output, re.MULTILINE)
-    if match:
+    for match in re.finditer(r":([^:\s]+)\s*$", output, re.MULTILINE):
         password = match.group(1)
         if "://" in password or password.startswith("//"):
             log.info("Ignoring URL in output: %s", password)
-        else:
-            log.info("Password found: %s", password)
-            return password
+            continue
+        log.info("Password found: %s", password)
+        return password
     log.info("Password not found")
     return None
