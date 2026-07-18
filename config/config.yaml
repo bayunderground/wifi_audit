@@ -5,7 +5,7 @@ filters:
   whitelist:
     - "^TP-Link_.*"
   blacklist:
-    - "^TP-Link_.*SN$"
+    - "^TP-Link_.*SN.*$"
     - '^12345678\+$'
     - "^TP-Link_40C5.*$"
     - "^TP-Link_98AC.*$"

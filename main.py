@@ -10,7 +10,8 @@ from audit.logging import setup_logging, get_logger
 from audit.persistence import load_raw, save_raw
 from audit.models import AuditState, AuditTarget, APState
 from audit.scheduler import Scheduler, SchedulerEvent
-from audit.scanner import scan
+import re
+from audit.scanner import scan, run_iw_scan, parse_scan, deduplicate_5g_variants
 from audit.capture.monitor import MonitorManager
 from audit.capture.hcxdump import CaptureSession
 from audit.capture.verifier import verify_capture
@@ -164,9 +165,55 @@ def run_test_crack_mode(cfg, log, args, fixtures_dir: str | Path = "fixtures") -
         _save_cracked_results(cracked_results, fixtures_dir / "cracked.txt")
     log.info("Test crack complete: %d/%d cracked", cracked_count, len(capture_files))
 
+def run_list_mode(cfg, log) -> None:
+    """Scan and list all nearby networks with filter status."""
+    interface = cfg.interfaces.management
+    log.info("Scanning on %s...", interface)
+
+    try:
+        raw = run_iw_scan(interface)
+    except Exception as e:
+        log.error("Scan failed: %s", e)
+        sys.exit(1)
+
+    aps = parse_scan(raw)
+    if not aps:
+        log.info("No networks found")
+        return
+
+    allowed = [re.compile(w, re.IGNORECASE) for w in cfg.filters.whitelist]
+    blocked = [re.compile(b, re.IGNORECASE) for b in cfg.filters.blacklist]
+
+    _, skipped_bssids = deduplicate_5g_variants(aps)
+
+    rows = []
+    for ap in aps:
+        in_whitelist = any(w.match(ap.essid) for w in allowed)
+        in_blacklist = any(b.match(ap.essid) for b in blocked)
+        will_capture = in_whitelist and not in_blacklist and ap.bssid not in skipped_bssids
+        is_skipped = ap.bssid in skipped_bssids
+        essid = ap.essid if ap.essid else "(hidden)"
+        rows.append((essid, ap.bssid, ap.channel, ap.signal, ap.encryption,
+                      "Y" if in_whitelist else "N",
+                      "Y" if in_blacklist else "N",
+                      "Y" if will_capture else "N",
+                      "5G" if is_skipped else ""))
+
+    rows.sort(key=lambda r: r[3], reverse=True)
+
+    hdr = f"{'ESSID':<26} {'BSSID':<18} {'CH':>3} {'SIGNAL':>6} {'ENC':<10} {'WL':>2} {'BL':>2} {'CAPTURE':>7} {'SKIP':>4}"
+    sep = "─" * len(hdr)
+    print(sep)
+    print(hdr)
+    print(sep)
+    for essid, bssid, ch, sig, enc, wl, bl, cap, skip in rows:
+        print(f"{essid:<26} {bssid:<18} {ch:>3} {sig:>6} {enc:<10} {wl:>2} {bl:>2} {cap:>7} {skip:>4}")
+    print(sep)
+    print(f"Total: {len(rows)} networks, {sum(1 for r in rows if r[7] == 'Y')} will be captured, {len(skipped_bssids)} skipped (5GHz preferred)")
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Wi-Fi audit framework")
-    p.add_argument("mode", choices=["capture", "crack", "verify", "test-crack"], help="Operating mode")
+    p.add_argument("mode", choices=["capture", "crack", "verify", "test-crack", "list"], help="Operating mode")
     p.add_argument("-c", "--config", default="config/config.yaml", help="Config file path")
     p.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Override log level from config")
     p.add_argument("--mask", default=None, help="Override cracking mask (test-crack only)")
@@ -192,6 +239,10 @@ def main() -> None:
         run_test_crack_mode(cfg, log, args)
         return
 
+    if args.mode == "list":
+        run_list_mode(cfg, log)
+        return
+
     raw = load_raw(cfg.paths.state)
     state = AuditState()
     log.info("Loaded %d targets", len(state.targets))
@@ -213,7 +264,10 @@ def main() -> None:
     # Scan while interface is still in managed mode
     try:
         raw_scan = scan(cfg.interfaces.monitor, cfg.filters.whitelist, cfg.filters.blacklist)
-        for ap in raw_scan.access_points:
+        aps, skipped = deduplicate_5g_variants(raw_scan.access_points)
+        for bssid in skipped:
+            log.info("Skipping 2.4GHz variant: %s (5GHz available)", bssid)
+        for ap in aps:
             if ap.bssid not in state.targets:
                 log.info("New AP: %s (%s)", ap.essid, ap.bssid)
                 state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
