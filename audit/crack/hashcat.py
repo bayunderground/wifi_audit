@@ -1,7 +1,7 @@
 from __future__ import annotations
 import re
+import subprocess as _subprocess
 from ..logging import get_logger
-from ..util.subprocess import run, CommandError
 
 log = get_logger(__name__)
 
@@ -18,10 +18,16 @@ def crack(hash_file: str, mask: str, custom_charsets: dict[int, str] | None = No
         for idx, charset in sorted(custom_charsets.items()):
             cmd.extend([f"-{idx}", charset])
     cmd.extend([hash_file, mask])
-    try:
-        output = run(cmd)
-    except CommandError as e:
-        raise HashcatError(f"hashcat failed: {e.stderr}") from e
+    log.debug("Command: %s", " ".join(cmd))
+    result = _subprocess.run(cmd, text=True, capture_output=True, timeout=300)
+    output = result.stdout + result.stderr
+    log.debug("Exit code: %d", result.returncode)
+    if result.stdout:
+        log.debug("Stdout tail: %s", result.stdout[-500:])
+    if result.stderr:
+        log.debug("Stderr tail: %s", result.stderr[-500:])
+    if result.returncode > 1:
+        raise HashcatError(f"hashcat failed (rc={result.returncode}): {result.stderr.strip() or result.stdout.strip()}")
     match = re.search(r":([^:\s]+)\s*$", output, re.MULTILINE)
     if match:
         password = match.group(1)
