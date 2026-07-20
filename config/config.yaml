@@ -13,6 +13,8 @@ capture:
   handshake_timeout: 3600
   revisit_interval: 300
   verify: true
+  initial_scan_period: 180
+  rescan_interval: 300
 paths:
   captures: captures
   hashes: hashes

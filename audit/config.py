@@ -18,6 +18,8 @@ class Capture:
     handshake_timeout: int
     revisit_interval: int
     verify: bool
+    initial_scan_period: int = 180
+    rescan_interval: int = 300
 
 @dataclass
 class Paths:

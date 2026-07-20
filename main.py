@@ -252,6 +252,7 @@ def main() -> None:
 
     active_captures: dict[str, CaptureSession] = {}
     running = True
+    last_rescan = time.time()
 
     def handle_sigint(sig: int, frame: object) -> None:
         nonlocal running
@@ -261,26 +262,33 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_sigint)
     signal.signal(signal.SIGTERM, handle_sigint)
 
-    # Scan while interface is still in managed mode
-    try:
-        raw_scan = scan(cfg.interfaces.monitor, cfg.filters.whitelist, cfg.filters.blacklist)
-        aps, skipped = deduplicate_5g_variants(raw_scan.access_points)
-        for bssid in skipped:
-            log.info("Skipping 2.4GHz variant: %s (5GHz available)", bssid)
-        for ap in aps:
-            if ap.bssid not in state.targets:
-                log.info("New AP: %s (%s)", ap.essid, ap.bssid)
-                state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
-                scheduler.rebuild()
-    except Exception as e:
-        log.error("Initial scan failed: %s", e)
-        sys.exit(1)
+    # Initial scan period - scan multiple times to discover all APs
+    log.info("Scanning for %ds to discover networks...", cfg.capture.initial_scan_period)
+    scan_end = time.time() + cfg.capture.initial_scan_period
+    scan_count = 0
+    while time.time() < scan_end and running:
+        try:
+            raw_scan = scan(cfg.interfaces.management, cfg.filters.whitelist, cfg.filters.blacklist)
+            aps, skipped = deduplicate_5g_variants(raw_scan.access_points)
+            new_count = 0
+            for ap in aps:
+                if ap.bssid not in state.targets:
+                    state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
+                    new_count += 1
+            scan_count += 1
+            if new_count:
+                log.info("Scan %d: found %d new APs (%d total targets)", scan_count, new_count, len(state.targets))
+            time.sleep(10)
+        except Exception as e:
+            log.error("Scan failed: %s", e)
+            break
 
     if not state.targets:
         log.error("No targets found. Check filters or bring APs in range.")
         sys.exit(1)
 
-    log.info("Discovered %d targets, enabling monitor mode", len(state.targets))
+    log.info("Discovered %d targets after %d scans, enabling monitor mode", len(state.targets), scan_count)
+    scheduler.rebuild()
 
     try:
         monitor.enable()
@@ -359,6 +367,24 @@ def main() -> None:
 
             generate_report(state, Path(cfg.paths.reports))
             save_raw(cfg.paths.state, state.targets)
+
+            # Periodic rescan to discover new APs
+            if time.time() - last_rescan >= cfg.capture.rescan_interval:
+                try:
+                    raw_scan = scan(cfg.interfaces.management, cfg.filters.whitelist, cfg.filters.blacklist)
+                    aps, _ = deduplicate_5g_variants(raw_scan.access_points)
+                    new_count = 0
+                    for ap in aps:
+                        if ap.bssid not in state.targets:
+                            state.targets[ap.bssid] = AuditTarget(ap=ap, state=APState.DISCOVERED)
+                            new_count += 1
+                    if new_count:
+                        log.info("Rescan: found %d new APs (%d total targets)", new_count, len(state.targets))
+                        scheduler.rebuild()
+                    last_rescan = time.time()
+                except Exception as e:
+                    log.warning("Rescan failed: %s", e)
+
             time.sleep(5)
 
     finally:
